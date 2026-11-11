@@ -1,0 +1,26 @@
+# Compiled test binaries and programs
+*.test
+*.exe
+*.out
+/latency
+/matching
+
+# Benchmark, profiling and trace output
+old.txt
+new.txt
+results.txt
+*.pprof
+cpu.out
+mem.out
+block.out
+mutex.out
+trace.out
+*.trace
+perf.data*
+
+# Editor and tool files
+.vscode/
+.idea/
+
+# env file
+.env
