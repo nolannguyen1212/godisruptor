@@ -14,8 +14,8 @@ func NewSequence(initial int64) *Sequence {
 
 func minimumSequence(sequences []*Sequence, fallback int64) int64 {
 	minimum := fallback
-	for _, sequence := range sequences {
-		minimum = min(minimum, sequence.Load())
+	for _, seq := range sequences {
+		minimum = min(minimum, seq.Load())
 	}
 	return minimum
 }
