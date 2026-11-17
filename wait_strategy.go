@@ -9,15 +9,21 @@ import (
 )
 
 const (
-	spinTries     = 100
-	yieldTries    = 100
-	sleepDuration = 100 * time.Microsecond
+	spinTries        = 100
+	yieldTries       = 100
+	sleepFromAttempt = spinTries + yieldTries
+	sleepDuration    = 100 * time.Microsecond
 )
 
 var ErrAlerted = errors.New("godisruptor: alerted")
 
 type WaitStrategy interface {
-	WaitFor(sequence int64, cursor *Sequence, dependentSequences []*Sequence, alerted *atomic.Bool) (int64, error)
+	WaitFor(
+		sequence int64,
+		cursor *Sequence,
+		dependentSequences []*Sequence,
+		alerted *atomic.Bool,
+	) (int64, error)
 	SignalAllWhenBlocking()
 }
 
@@ -28,9 +34,18 @@ func NewBusySpinWaitStrategy() *BusySpinWaitStrategy {
 }
 
 func (*BusySpinWaitStrategy) WaitFor(
-	sequence int64, cursor *Sequence, dependentSequences []*Sequence, alerted *atomic.Bool,
+	sequence int64,
+	cursor *Sequence,
+	dependentSequences []*Sequence,
+	alerted *atomic.Bool,
 ) (int64, error) {
-	return waitWithBackoff(sequence, cursor, dependentSequences, alerted, noBackoff)
+	return waitWithBackoff(
+		sequence,
+		cursor,
+		dependentSequences,
+		alerted,
+		noBackoff,
+	)
 }
 
 func (*BusySpinWaitStrategy) SignalAllWhenBlocking() {}
@@ -42,9 +57,18 @@ func NewYieldingWaitStrategy() *YieldingWaitStrategy {
 }
 
 func (*YieldingWaitStrategy) WaitFor(
-	sequence int64, cursor *Sequence, dependentSequences []*Sequence, alerted *atomic.Bool,
+	sequence int64,
+	cursor *Sequence,
+	dependentSequences []*Sequence,
+	alerted *atomic.Bool,
 ) (int64, error) {
-	return waitWithBackoff(sequence, cursor, dependentSequences, alerted, yieldingBackoff)
+	return waitWithBackoff(
+		sequence,
+		cursor,
+		dependentSequences,
+		alerted,
+		yieldingBackoff,
+	)
 }
 
 func (*YieldingWaitStrategy) SignalAllWhenBlocking() {}
@@ -56,9 +80,18 @@ func NewSleepingWaitStrategy() *SleepingWaitStrategy {
 }
 
 func (*SleepingWaitStrategy) WaitFor(
-	sequence int64, cursor *Sequence, dependentSequences []*Sequence, alerted *atomic.Bool,
+	sequence int64,
+	cursor *Sequence,
+	dependentSequences []*Sequence,
+	alerted *atomic.Bool,
 ) (int64, error) {
-	return waitWithBackoff(sequence, cursor, dependentSequences, alerted, sleepingBackoff)
+	return waitWithBackoff(
+		sequence,
+		cursor,
+		dependentSequences,
+		alerted,
+		sleepingBackoff,
+	)
 }
 
 func (*SleepingWaitStrategy) SignalAllWhenBlocking() {}
@@ -76,13 +109,23 @@ func NewBlockingWaitStrategy() *BlockingWaitStrategy {
 }
 
 func (w *BlockingWaitStrategy) WaitFor(
-	sequence int64, cursor *Sequence, dependentSequences []*Sequence, alerted *atomic.Bool,
+	sequence int64,
+	cursor *Sequence,
+	dependentSequences []*Sequence,
+	alerted *atomic.Bool,
 ) (int64, error) {
-	if err := w.waitForCursor(sequence, cursor, alerted); err != nil {
+	err := w.waitForCursor(sequence, cursor, alerted)
+	if err != nil {
 		return 0, err
 	}
 
-	return waitWithBackoff(sequence, cursor, dependentSequences, alerted, yieldEveryRound)
+	return waitWithBackoff(
+		sequence,
+		cursor,
+		dependentSequences,
+		alerted,
+		yieldEveryRound,
+	)
 }
 
 func (w *BlockingWaitStrategy) SignalAllWhenBlocking() {
@@ -93,7 +136,9 @@ func (w *BlockingWaitStrategy) SignalAllWhenBlocking() {
 }
 
 func (w *BlockingWaitStrategy) waitForCursor(
-	sequence int64, cursor *Sequence, alerted *atomic.Bool,
+	sequence int64,
+	cursor *Sequence,
+	alerted *atomic.Bool,
 ) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -110,14 +155,23 @@ func (w *BlockingWaitStrategy) waitForCursor(
 }
 
 func waitWithBackoff(
-	sequence int64, cursor *Sequence, dependentSequences []*Sequence, alerted *atomic.Bool, backoff func(attempt int),
+	sequence int64,
+	cursor *Sequence,
+	dependentSequences []*Sequence,
+	alerted *atomic.Bool,
+	backoff func(attempt int),
 ) (int64, error) {
 	for attempt := 0; ; attempt++ {
 		if alerted.Load() {
 			return 0, ErrAlerted
 		}
 
-		if available, ok := sequenceReached(sequence, cursor, dependentSequences); ok {
+		available, reached := sequenceReached(
+			sequence,
+			cursor,
+			dependentSequences,
+		)
+		if reached {
 			return available, nil
 		}
 
@@ -125,10 +179,15 @@ func waitWithBackoff(
 	}
 }
 
-func sequenceReached(sequence int64, cursor *Sequence, dependentSequences []*Sequence) (int64, bool) {
+func sequenceReached(
+	sequence int64,
+	cursor *Sequence,
+	dependentSequences []*Sequence,
+) (int64, bool) {
 	available := slowestOf(dependentSequences, cursor.Load())
+	reached := available >= sequence
 
-	return available, available >= sequence
+	return available, reached
 }
 
 func noBackoff(int) {}
@@ -144,7 +203,7 @@ func yieldingBackoff(attempt int) {
 }
 
 func sleepingBackoff(attempt int) {
-	if attempt >= spinTries+yieldTries {
+	if attempt >= sleepFromAttempt {
 		time.Sleep(sleepDuration)
 		return
 	}

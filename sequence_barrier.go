@@ -10,7 +10,12 @@ type SequenceBarrier struct {
 }
 
 func (b *SequenceBarrier) WaitFor(sequence int64) (int64, error) {
-	return b.waitStrategy.WaitFor(sequence, b.cursor, b.dependentSequences, &b.alerted)
+	return b.waitStrategy.WaitFor(
+		sequence,
+		b.cursor,
+		b.dependentSequences,
+		&b.alerted,
+	)
 }
 
 func (b *SequenceBarrier) Cursor() int64 {

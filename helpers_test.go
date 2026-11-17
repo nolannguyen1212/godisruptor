@@ -15,28 +15,53 @@ var waitStrategies = []struct {
 	name     string
 	strategy WaitStrategy
 }{
-	{"BusySpin", NewBusySpinWaitStrategy()},
-	{"Yielding", NewYieldingWaitStrategy()},
-	{"Sleeping", NewSleepingWaitStrategy()},
-	{"Blocking", NewBlockingWaitStrategy()},
+	{
+		name:     "BusySpin",
+		strategy: NewBusySpinWaitStrategy(),
+	},
+	{
+		name:     "Yielding",
+		strategy: NewYieldingWaitStrategy(),
+	},
+	{
+		name:     "Sleeping",
+		strategy: NewSleepingWaitStrategy(),
+	},
+	{
+		name:     "Blocking",
+		strategy: NewBlockingWaitStrategy(),
+	},
 }
 
-func forEachWaitStrategy(t *testing.T, run func(t *testing.T, strategy WaitStrategy)) {
+func forEachWaitStrategy(
+	t *testing.T,
+	run func(t *testing.T, strategy WaitStrategy),
+) {
 	t.Helper()
 
 	for _, tt := range waitStrategies {
-		t.Run(tt.name, func(t *testing.T) {
-			run(t, tt.strategy)
-		})
+		t.Run(
+			tt.name,
+			func(t *testing.T) {
+				run(t, tt.strategy)
+			},
+		)
 	}
 }
 
 func skipBusySpinOnFewCores(t *testing.T, strategy WaitStrategy) {
 	t.Helper()
 
-	if _, ok := strategy.(*BusySpinWaitStrategy); ok && runtime.GOMAXPROCS(0) < 3 {
-		t.Skip("busy spin needs a free P for every goroutine")
+	_, isBusySpin := strategy.(*BusySpinWaitStrategy)
+	if !isBusySpin {
+		return
 	}
+
+	if runtime.GOMAXPROCS(0) >= 3 {
+		return
+	}
+
+	t.Skip("busy spin needs a free P for every goroutine")
 }
 
 func afterDelay(action func()) {

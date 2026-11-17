@@ -6,7 +6,12 @@ import (
 	"testing"
 )
 
-func assertAvailable(t *testing.T, got int64, err error, want int64) {
+func assertAvailable(
+	t *testing.T,
+	got int64,
+	err error,
+	want int64,
+) {
 	t.Helper()
 
 	if err != nil {
@@ -24,9 +29,19 @@ func TestWaitForReturnsAtOnceWhenAlreadyPublished(t *testing.T) {
 		var alerted atomic.Bool
 		cursor := NewSequence(published)
 
-		got, err := strategy.WaitFor(sequence, cursor, []*Sequence{cursor}, &alerted)
+		got, err := strategy.WaitFor(
+			sequence,
+			cursor,
+			[]*Sequence{cursor},
+			&alerted,
+		)
 
-		assertAvailable(t, got, err, published)
+		assertAvailable(
+			t,
+			got,
+			err,
+			published,
+		)
 	})
 }
 
@@ -37,9 +52,19 @@ func TestWaitForFollowsSlowestDependency(t *testing.T) {
 		cursor := NewSequence(4)
 		dependency := NewSequence(slowest)
 
-		got, err := strategy.WaitFor(sequence, cursor, []*Sequence{dependency}, &alerted)
+		got, err := strategy.WaitFor(
+			sequence,
+			cursor,
+			[]*Sequence{dependency},
+			&alerted,
+		)
 
-		assertAvailable(t, got, err, slowest)
+		assertAvailable(
+			t,
+			got,
+			err,
+			slowest,
+		)
 	})
 }
 
@@ -53,9 +78,19 @@ func TestWaitForBlocksUntilPublished(t *testing.T) {
 			strategy.SignalAllWhenBlocking()
 		})
 
-		got, err := strategy.WaitFor(sequence, cursor, []*Sequence{cursor}, &alerted)
+		got, err := strategy.WaitFor(
+			sequence,
+			cursor,
+			[]*Sequence{cursor},
+			&alerted,
+		)
 
-		assertAvailable(t, got, err, sequence)
+		assertAvailable(
+			t,
+			got,
+			err,
+			sequence,
+		)
 	})
 }
 
@@ -69,7 +104,12 @@ func TestWaitForReturnsErrAlertedWhenAlerted(t *testing.T) {
 			strategy.SignalAllWhenBlocking()
 		})
 
-		_, err := strategy.WaitFor(sequence, cursor, []*Sequence{cursor}, &alerted)
+		_, err := strategy.WaitFor(
+			sequence,
+			cursor,
+			[]*Sequence{cursor},
+			&alerted,
+		)
 
 		if !errors.Is(err, ErrAlerted) {
 			t.Fatalf("WaitFor() error = %v, want ErrAlerted", err)
