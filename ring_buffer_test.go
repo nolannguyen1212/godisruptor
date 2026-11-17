@@ -47,7 +47,7 @@ func TestRingBufferDeliversEveryEventInOrder(t *testing.T) {
 		sequencer := NewSequencer(testBufferSize, strategy)
 		ring := NewRingBuffer[testEvent](sequencer)
 		consumer := NewSequence(InitialSequence)
-		sequencer.AddGatingSequences(consumer)
+		sequencer.AddConsumerSequences(consumer)
 		barrier := sequencer.NewBarrier()
 		watchdog := time.AfterFunc(30*time.Second, barrier.Alert)
 		defer watchdog.Stop()

@@ -6,12 +6,12 @@ import (
 )
 
 type Sequencer struct {
-	bufferSize      int64
-	gatingSequences []*Sequence
-	waitStrategy    WaitStrategy
+	bufferSize        int64
+	consumerSequences []*Sequence
+	waitStrategy      WaitStrategy
 
-	nextValue int64
-	cursor    Sequence
+	claimed int64
+	cursor  Sequence
 }
 
 func NewSequencer(bufferSize int64, waitStrategy WaitStrategy) *Sequencer {
@@ -22,27 +22,20 @@ func NewSequencer(bufferSize int64, waitStrategy WaitStrategy) *Sequencer {
 	s := &Sequencer{
 		bufferSize:   bufferSize,
 		waitStrategy: waitStrategy,
-		nextValue:    InitialSequence,
+		claimed:      InitialSequence,
 	}
 	s.cursor.Store(InitialSequence)
 
 	return s
 }
 
-func (s *Sequencer) Next(count int64) int64 {
-	if count < 1 || count > s.bufferSize {
-		panic("Next count out of range")
-	}
+func (s *Sequencer) Next() int64 {
+	next := s.claimed + 1
+	wrapPoint := next - s.bufferSize
+	s.waitForConsumers(wrapPoint, next)
+	s.claimed = next
 
-	nextSequence := s.nextValue + count
-	wrapPoint := nextSequence - s.bufferSize
-	for wrapPoint > slowestOf(s.gatingSequences, nextSequence) {
-		runtime.Gosched()
-	}
-
-	s.nextValue = nextSequence
-
-	return nextSequence
+	return next
 }
 
 func (s *Sequencer) Publish(sequence int64) {
@@ -50,8 +43,8 @@ func (s *Sequencer) Publish(sequence int64) {
 	s.waitStrategy.SignalAllWhenBlocking()
 }
 
-func (s *Sequencer) AddGatingSequences(sequences ...*Sequence) {
-	s.gatingSequences = append(s.gatingSequences, sequences...)
+func (s *Sequencer) AddConsumerSequences(sequences ...*Sequence) {
+	s.consumerSequences = append(s.consumerSequences, sequences...)
 }
 
 func (s *Sequencer) NewBarrier(sequencesToTrack ...*Sequence) *SequenceBarrier {
@@ -59,5 +52,11 @@ func (s *Sequencer) NewBarrier(sequencesToTrack ...*Sequence) *SequenceBarrier {
 		waitStrategy:       s.waitStrategy,
 		cursor:             &s.cursor,
 		dependentSequences: slices.Clone(sequencesToTrack),
+	}
+}
+
+func (s *Sequencer) waitForConsumers(wrapPoint, next int64) {
+	for wrapPoint > slowestOf(s.consumerSequences, next) {
+		runtime.Gosched()
 	}
 }

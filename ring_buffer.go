@@ -17,7 +17,7 @@ func (r *RingBuffer[E]) Get(sequence int64) *E {
 }
 
 func (r *RingBuffer[E]) Next() int64 {
-	return r.sequencer.Next(1)
+	return r.sequencer.Next()
 }
 
 func (r *RingBuffer[E]) Publish(sequence int64) {
