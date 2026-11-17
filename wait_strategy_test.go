@@ -47,11 +47,11 @@ func expectAvailable(t *testing.T, expected, got int64, err error) {
 
 func TestWaitForReturnsAtOnceWhenAlreadyPublished(t *testing.T) {
 	forEachWaitStrategy(t, func(t *testing.T, strategy WaitStrategy) {
-		const target, published = 3, 5
-		var canceled atomic.Bool
-		claimed := NewSequence(published)
+		const sequence, published = 3, 5
+		var alerted atomic.Bool
+		cursor := NewSequence(published)
 
-		got, err := strategy.WaitFor(target, claimed, []*Sequence{claimed}, &canceled)
+		got, err := strategy.WaitFor(sequence, cursor, []*Sequence{cursor}, &alerted)
 
 		expectAvailable(t, published, got, err)
 	})
@@ -59,12 +59,12 @@ func TestWaitForReturnsAtOnceWhenAlreadyPublished(t *testing.T) {
 
 func TestWaitForFollowsSlowestDependency(t *testing.T) {
 	forEachWaitStrategy(t, func(t *testing.T, strategy WaitStrategy) {
-		const target, slowest = 1, 2
-		var canceled atomic.Bool
-		claimed := NewSequence(4)
+		const sequence, slowest = 1, 2
+		var alerted atomic.Bool
+		cursor := NewSequence(4)
 		dependency := NewSequence(slowest)
 
-		got, err := strategy.WaitFor(target, claimed, []*Sequence{dependency}, &canceled)
+		got, err := strategy.WaitFor(sequence, cursor, []*Sequence{dependency}, &alerted)
 
 		expectAvailable(t, slowest, got, err)
 	})
@@ -72,34 +72,34 @@ func TestWaitForFollowsSlowestDependency(t *testing.T) {
 
 func TestWaitForBlocksUntilPublished(t *testing.T) {
 	forEachWaitStrategy(t, func(t *testing.T, strategy WaitStrategy) {
-		const target = 3
-		var canceled atomic.Bool
-		claimed := NewSequence(InitialSequence)
+		const sequence = 3
+		var alerted atomic.Bool
+		cursor := NewSequence(InitialSequence)
 		afterDelay(func() {
-			claimed.Store(target)
-			strategy.WakeWaiters()
+			cursor.Store(sequence)
+			strategy.SignalAllWhenBlocking()
 		})
 
-		got, err := strategy.WaitFor(target, claimed, []*Sequence{claimed}, &canceled)
+		got, err := strategy.WaitFor(sequence, cursor, []*Sequence{cursor}, &alerted)
 
-		expectAvailable(t, target, got, err)
+		expectAvailable(t, sequence, got, err)
 	})
 }
 
-func TestWaitForReturnsErrCanceledWhenCanceled(t *testing.T) {
+func TestWaitForReturnsErrAlertedWhenAlerted(t *testing.T) {
 	forEachWaitStrategy(t, func(t *testing.T, strategy WaitStrategy) {
-		const target = 3
-		var canceled atomic.Bool
-		claimed := NewSequence(InitialSequence)
+		const sequence = 3
+		var alerted atomic.Bool
+		cursor := NewSequence(InitialSequence)
 		afterDelay(func() {
-			canceled.Store(true)
-			strategy.WakeWaiters()
+			alerted.Store(true)
+			strategy.SignalAllWhenBlocking()
 		})
 
-		_, err := strategy.WaitFor(target, claimed, []*Sequence{claimed}, &canceled)
+		_, err := strategy.WaitFor(sequence, cursor, []*Sequence{cursor}, &alerted)
 
-		if !errors.Is(err, ErrCanceled) {
-			t.Fatalf("WaitFor() error = %v, expected ErrCanceled", err)
+		if !errors.Is(err, ErrAlerted) {
+			t.Fatalf("WaitFor() error = %v, expected ErrAlerted", err)
 		}
 	})
 }

@@ -14,16 +14,16 @@ const (
 	sleepDuration = 100 * time.Microsecond
 )
 
-var ErrCanceled = errors.New("godisruptor: canceled")
+var ErrAlerted = errors.New("godisruptor: alerted")
 
 type WaitStrategy interface {
-	WaitFor(target int64, claimed *Sequence, dependencies []*Sequence, canceled *atomic.Bool) (int64, error)
-	WakeWaiters()
+	WaitFor(sequence int64, cursor *Sequence, dependentSequences []*Sequence, alerted *atomic.Bool) (int64, error)
+	SignalAllWhenBlocking()
 }
 
-func targetReached(target int64, claimed *Sequence, dependencies []*Sequence) (int64, bool) {
-	available := slowestOf(dependencies, claimed.Load())
-	return available, available >= target
+func sequenceReached(sequence int64, cursor *Sequence, dependentSequences []*Sequence) (int64, bool) {
+	available := slowestOf(dependentSequences, cursor.Load())
+	return available, available >= sequence
 }
 
 func yieldingBackoff(attempt int) {
@@ -47,19 +47,19 @@ func NewBusySpinWaitStrategy() *BusySpinWaitStrategy {
 }
 
 func (w *BusySpinWaitStrategy) WaitFor(
-	target int64, claimed *Sequence, dependencies []*Sequence, canceled *atomic.Bool,
+	sequence int64, cursor *Sequence, dependentSequences []*Sequence, alerted *atomic.Bool,
 ) (int64, error) {
 	for {
-		if canceled.Load() {
-			return 0, ErrCanceled
+		if alerted.Load() {
+			return 0, ErrAlerted
 		}
-		if available, ok := targetReached(target, claimed, dependencies); ok {
+		if available, ok := sequenceReached(sequence, cursor, dependentSequences); ok {
 			return available, nil
 		}
 	}
 }
 
-func (w *BusySpinWaitStrategy) WakeWaiters() {}
+func (w *BusySpinWaitStrategy) SignalAllWhenBlocking() {}
 
 type YieldingWaitStrategy struct{}
 
@@ -68,20 +68,20 @@ func NewYieldingWaitStrategy() *YieldingWaitStrategy {
 }
 
 func (w *YieldingWaitStrategy) WaitFor(
-	target int64, claimed *Sequence, dependencies []*Sequence, canceled *atomic.Bool,
+	sequence int64, cursor *Sequence, dependentSequences []*Sequence, alerted *atomic.Bool,
 ) (int64, error) {
 	for attempt := 0; ; attempt++ {
-		if canceled.Load() {
-			return 0, ErrCanceled
+		if alerted.Load() {
+			return 0, ErrAlerted
 		}
-		if available, ok := targetReached(target, claimed, dependencies); ok {
+		if available, ok := sequenceReached(sequence, cursor, dependentSequences); ok {
 			return available, nil
 		}
 		yieldingBackoff(attempt)
 	}
 }
 
-func (w *YieldingWaitStrategy) WakeWaiters() {}
+func (w *YieldingWaitStrategy) SignalAllWhenBlocking() {}
 
 type SleepingWaitStrategy struct{}
 
@@ -90,20 +90,20 @@ func NewSleepingWaitStrategy() *SleepingWaitStrategy {
 }
 
 func (w *SleepingWaitStrategy) WaitFor(
-	target int64, claimed *Sequence, dependencies []*Sequence, canceled *atomic.Bool,
+	sequence int64, cursor *Sequence, dependentSequences []*Sequence, alerted *atomic.Bool,
 ) (int64, error) {
 	for attempt := 0; ; attempt++ {
-		if canceled.Load() {
-			return 0, ErrCanceled
+		if alerted.Load() {
+			return 0, ErrAlerted
 		}
-		if available, ok := targetReached(target, claimed, dependencies); ok {
+		if available, ok := sequenceReached(sequence, cursor, dependentSequences); ok {
 			return available, nil
 		}
 		sleepingBackoff(attempt)
 	}
 }
 
-func (w *SleepingWaitStrategy) WakeWaiters() {}
+func (w *SleepingWaitStrategy) SignalAllWhenBlocking() {}
 
 type BlockingWaitStrategy struct {
 	mu   sync.Mutex
@@ -117,36 +117,36 @@ func NewBlockingWaitStrategy() *BlockingWaitStrategy {
 }
 
 func (w *BlockingWaitStrategy) WaitFor(
-	target int64, claimed *Sequence, dependencies []*Sequence, canceled *atomic.Bool,
+	sequence int64, cursor *Sequence, dependentSequences []*Sequence, alerted *atomic.Bool,
 ) (int64, error) {
-	if err := w.waitForClaimed(target, claimed, canceled); err != nil {
+	if err := w.waitForCursor(sequence, cursor, alerted); err != nil {
 		return 0, err
 	}
 	for {
-		if canceled.Load() {
-			return 0, ErrCanceled
+		if alerted.Load() {
+			return 0, ErrAlerted
 		}
-		if available, ok := targetReached(target, claimed, dependencies); ok {
+		if available, ok := sequenceReached(sequence, cursor, dependentSequences); ok {
 			return available, nil
 		}
 		runtime.Gosched()
 	}
 }
 
-func (w *BlockingWaitStrategy) WakeWaiters() {
+func (w *BlockingWaitStrategy) SignalAllWhenBlocking() {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.cond.Broadcast()
 }
 
-func (w *BlockingWaitStrategy) waitForClaimed(
-	target int64, claimed *Sequence, canceled *atomic.Bool,
+func (w *BlockingWaitStrategy) waitForCursor(
+	sequence int64, cursor *Sequence, alerted *atomic.Bool,
 ) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	for claimed.Load() < target {
-		if canceled.Load() {
-			return ErrCanceled
+	for cursor.Load() < sequence {
+		if alerted.Load() {
+			return ErrAlerted
 		}
 		w.cond.Wait()
 	}
