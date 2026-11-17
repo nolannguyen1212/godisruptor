@@ -12,10 +12,10 @@ func NewSequence(initial int64) *Sequence {
 	return s
 }
 
-func minimumSequence(sequences []*Sequence, fallback int64) int64 {
-	minimum := fallback
+func slowestOf(sequences []*Sequence, ceiling int64) int64 {
+	slowest := ceiling
 	for _, seq := range sequences {
-		minimum = min(minimum, seq.Load())
+		slowest = min(slowest, seq.Load())
 	}
-	return minimum
+	return slowest
 }

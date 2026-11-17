@@ -22,7 +22,7 @@ type WaitStrategy interface {
 }
 
 func targetReached(target int64, claimed *Sequence, dependencies []*Sequence) (int64, bool) {
-	available := minimumSequence(dependencies, claimed.Load())
+	available := slowestOf(dependencies, claimed.Load())
 	return available, available >= target
 }
 
