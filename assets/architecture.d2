@@ -1,0 +1,54 @@
+title: Single producer, single consumer (SPSC) {
+  shape: text
+  near: top-center
+  style.font-size: 32
+}
+
+grid-rows: 3
+grid-columns: 3
+horizontal-gap: 150
+vertical-gap: 80
+
+gap_top_left: "" {
+  style.opacity: 0
+}
+
+cursor: cursor {
+  shape: cylinder
+}
+
+gap_top_right: "" {
+  style.opacity: 0
+}
+
+producer: Producer
+
+ring: "" {
+  shape: image
+  icon: ./ring.svg
+  width: 220
+  height: 220
+}
+
+consumer: Consumer
+
+gap_bottom_left: "" {
+  style.opacity: 0
+}
+
+consumer_sequence: consumer sequence {
+  shape: cylinder
+}
+
+gap_bottom_right: "" {
+  style.opacity: 0
+}
+
+producer -> ring: write
+ring -> consumer: read
+
+producer -> cursor: publish
+cursor -> consumer: wait for
+
+consumer -> consumer_sequence: store
+consumer_sequence -> producer: check

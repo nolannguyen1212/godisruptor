@@ -1,22 +1,16 @@
 # godisruptor
 
-An implementation of the [LMAX Disruptor](https://lmax-exchange.github.io/disruptor/) in Go.
+A Go implementation of the [LMAX Disruptor](https://lmax-exchange.github.io/disruptor/), a way to hand events from one goroutine to another through a preallocated ring buffer. This version is single producer, single consumer (SPSC).
 
-The library follows the architecture of LMAX Disruptor 4: sequences, a preallocated ring buffer, single and multi producer sequencers, sequence barriers, pluggable wait strategies (busy spin, yielding, sleeping, blocking), batch event processors and a DSL for wiring a graph of consumers.
+<p align="center"><img src="assets/architecture.svg" width="600" alt="Architecture"></p>
 
-## Goals
+The ring buffer is allocated once and reused. The producer and the consumer never call each other. They coordinate through two counters, each written by exactly one side: the cursor, which is the last sequence the producer has published, and the consumer sequence, which is the last sequence the consumer has read. A sequence only grows, and it maps to a slot of the ring with `sequence % size`, which is what makes the ring circular.
 
-- No dependencies beyond the Go standard library.
-- No allocation on the hot path, so the garbage collector never runs because of the Disruptor. Generic over the event type, with a small, fixed number of indirect calls per event.
-- Every component stress tested under the race detector, and with `GOMAXPROCS` from 1 up to the number of cores.
-- Honest evaluation. Throughput with repeated interleaved runs and benchstat, latency with an open loop load generator and percentiles, CPU cost reported next to latency, and comparisons against a buffered channel, a mutex based queue, smarty/go-disruptor and the Workiva lock free ring buffer.
-- An order matching engine built on the library, measured end to end against the same engine built on channels.
-
-## Requirements
-
-- Go 1.24+
+To send an event, the producer writes it into the next slot and publishes it, which moves the cursor. The consumer waits until the cursor reaches the sequence it wants, reads the event from the ring, and then stores its own sequence. Before the producer reuses a slot it checks the consumer sequence, so it never overwrites an event that has not been read.
 
 ## Build
+
+Go 1.26 or newer, and nothing beyond the standard library.
 
 ```bash
 go vet ./...

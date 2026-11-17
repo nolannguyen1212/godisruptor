@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 300 300">
+<path d="M 156.5 25.2 A 125 125 0 0 1 254.8 81.9 L 207.0 113.0 A 68 68 0 0 0 153.6 82.1 Z" fill="#8b7bc7" stroke="#ffffff" stroke-width="1"/>
+<text x="198.2" y="66.4" fill="#ffffff" font-family="sans-serif" font-size="30" font-weight="bold" text-anchor="middle" dominant-baseline="central">0</text>
+<path d="M 261.4 93.3 A 125 125 0 0 1 261.4 206.7 L 210.6 180.9 A 68 68 0 0 0 210.6 119.1 Z" fill="#8b7bc7" stroke="#ffffff" stroke-width="1"/>
+<text x="246.5" y="150.0" fill="#ffffff" font-family="sans-serif" font-size="30" font-weight="bold" text-anchor="middle" dominant-baseline="central">1</text>
+<path d="M 254.8 218.1 A 125 125 0 0 1 156.5 274.8 L 153.6 217.9 A 68 68 0 0 0 207.0 187.0 Z" fill="#8b7bc7" stroke="#ffffff" stroke-width="1"/>
+<text x="198.2" y="233.6" fill="#ffffff" font-family="sans-serif" font-size="30" font-weight="bold" text-anchor="middle" dominant-baseline="central">2</text>
+<path d="M 143.5 274.8 A 125 125 0 0 1 45.2 218.1 L 93.0 187.0 A 68 68 0 0 0 146.4 217.9 Z" fill="#8b7bc7" stroke="#ffffff" stroke-width="1"/>
+<text x="101.8" y="233.6" fill="#ffffff" font-family="sans-serif" font-size="30" font-weight="bold" text-anchor="middle" dominant-baseline="central">3</text>
+<path d="M 38.6 206.7 A 125 125 0 0 1 38.6 93.3 L 89.4 119.1 A 68 68 0 0 0 89.4 180.9 Z" fill="#8b7bc7" stroke="#ffffff" stroke-width="1"/>
+<text x="53.5" y="150.0" fill="#ffffff" font-family="sans-serif" font-size="30" font-weight="bold" text-anchor="middle" dominant-baseline="central">4</text>
+<path d="M 45.2 81.9 A 125 125 0 0 1 143.5 25.2 L 146.4 82.1 A 68 68 0 0 0 93.0 113.0 Z" fill="#8b7bc7" stroke="#ffffff" stroke-width="1"/>
+<text x="101.7" y="66.4" fill="#ffffff" font-family="sans-serif" font-size="30" font-weight="bold" text-anchor="middle" dominant-baseline="central">5</text>
+<path d="M 179.7 10.1 A 143 143 0 1 1 120.3 10.1" fill="none" stroke="#8b7bc7" stroke-width="4"/>
+<polygon points="102.0,7.9 104.9,21.6 132.0,7.6" fill="#8b7bc7"/>
+<circle cx="150" cy="150" r="58" fill="#6f62ad"/>
+<text x="150" y="150" fill="#ffffff" font-family="sans-serif" font-size="17" font-weight="bold" text-anchor="middle" dominant-baseline="central">RingBuffer</text>
+</svg>
