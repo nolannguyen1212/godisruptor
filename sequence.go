@@ -9,6 +9,7 @@ const InitialSequence int64 = -1
 func NewSequence(initial int64) *Sequence {
 	s := &Sequence{}
 	s.Store(initial)
+
 	return s
 }
 
@@ -17,5 +18,6 @@ func slowestOf(sequences []*Sequence, ceiling int64) int64 {
 	for _, seq := range sequences {
 		slowest = min(slowest, seq.Load())
 	}
+
 	return slowest
 }
