@@ -14,11 +14,30 @@ const (
 	sleepDuration = 100 * time.Microsecond
 )
 
-var ErrCanceled = errors.New("disruptor: canceled")
+var ErrCanceled = errors.New("godisruptor: canceled")
 
 type WaitStrategy interface {
-	WaitFor(target int64, cursor *Sequence, dependencies []*Sequence, canceled *atomic.Bool) (int64, error)
+	WaitFor(target int64, claimed *Sequence, dependencies []*Sequence, canceled *atomic.Bool) (int64, error)
 	WakeWaiters()
+}
+
+func targetReached(target int64, claimed *Sequence, dependencies []*Sequence) (int64, bool) {
+	available := minimumSequence(dependencies, claimed.Load())
+	return available, available >= target
+}
+
+func yieldingBackoff(attempt int) {
+	if attempt >= spinTries {
+		runtime.Gosched()
+	}
+}
+
+func sleepingBackoff(attempt int) {
+	if attempt >= spinTries+yieldTries {
+		time.Sleep(sleepDuration)
+		return
+	}
+	yieldingBackoff(attempt)
 }
 
 type BusySpinWaitStrategy struct{}
@@ -28,13 +47,13 @@ func NewBusySpinWaitStrategy() *BusySpinWaitStrategy {
 }
 
 func (w *BusySpinWaitStrategy) WaitFor(
-	target int64, cursor *Sequence, dependencies []*Sequence, canceled *atomic.Bool,
+	target int64, claimed *Sequence, dependencies []*Sequence, canceled *atomic.Bool,
 ) (int64, error) {
 	for {
 		if canceled.Load() {
 			return 0, ErrCanceled
 		}
-		if available := minimumSequence(dependencies, cursor.Load()); available >= target {
+		if available, ok := targetReached(target, claimed, dependencies); ok {
 			return available, nil
 		}
 	}
@@ -49,18 +68,16 @@ func NewYieldingWaitStrategy() *YieldingWaitStrategy {
 }
 
 func (w *YieldingWaitStrategy) WaitFor(
-	target int64, cursor *Sequence, dependencies []*Sequence, canceled *atomic.Bool,
+	target int64, claimed *Sequence, dependencies []*Sequence, canceled *atomic.Bool,
 ) (int64, error) {
 	for attempt := 0; ; attempt++ {
 		if canceled.Load() {
 			return 0, ErrCanceled
 		}
-		if available := minimumSequence(dependencies, cursor.Load()); available >= target {
+		if available, ok := targetReached(target, claimed, dependencies); ok {
 			return available, nil
 		}
-		if attempt >= spinTries {
-			runtime.Gosched()
-		}
+		yieldingBackoff(attempt)
 	}
 }
 
@@ -73,21 +90,16 @@ func NewSleepingWaitStrategy() *SleepingWaitStrategy {
 }
 
 func (w *SleepingWaitStrategy) WaitFor(
-	target int64, cursor *Sequence, dependencies []*Sequence, canceled *atomic.Bool,
+	target int64, claimed *Sequence, dependencies []*Sequence, canceled *atomic.Bool,
 ) (int64, error) {
 	for attempt := 0; ; attempt++ {
 		if canceled.Load() {
 			return 0, ErrCanceled
 		}
-		if available := minimumSequence(dependencies, cursor.Load()); available >= target {
+		if available, ok := targetReached(target, claimed, dependencies); ok {
 			return available, nil
 		}
-		switch {
-		case attempt >= spinTries+yieldTries:
-			time.Sleep(sleepDuration)
-		case attempt >= spinTries:
-			runtime.Gosched()
-		}
+		sleepingBackoff(attempt)
 	}
 }
 
@@ -105,16 +117,16 @@ func NewBlockingWaitStrategy() *BlockingWaitStrategy {
 }
 
 func (w *BlockingWaitStrategy) WaitFor(
-	target int64, cursor *Sequence, dependencies []*Sequence, canceled *atomic.Bool,
+	target int64, claimed *Sequence, dependencies []*Sequence, canceled *atomic.Bool,
 ) (int64, error) {
-	if err := w.waitForCursor(target, cursor, canceled); err != nil {
+	if err := w.waitForClaimed(target, claimed, canceled); err != nil {
 		return 0, err
 	}
 	for {
 		if canceled.Load() {
 			return 0, ErrCanceled
 		}
-		if available := minimumSequence(dependencies, cursor.Load()); available >= target {
+		if available, ok := targetReached(target, claimed, dependencies); ok {
 			return available, nil
 		}
 		runtime.Gosched()
@@ -127,12 +139,12 @@ func (w *BlockingWaitStrategy) WakeWaiters() {
 	w.cond.Broadcast()
 }
 
-func (w *BlockingWaitStrategy) waitForCursor(
-	target int64, cursor *Sequence, canceled *atomic.Bool,
+func (w *BlockingWaitStrategy) waitForClaimed(
+	target int64, claimed *Sequence, canceled *atomic.Bool,
 ) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	for cursor.Load() < target {
+	for claimed.Load() < target {
 		if canceled.Load() {
 			return ErrCanceled
 		}

@@ -49,9 +49,9 @@ func TestWaitForReturnsAtOnceWhenAlreadyPublished(t *testing.T) {
 	forEachWaitStrategy(t, func(t *testing.T, strategy WaitStrategy) {
 		const target, published = 3, 5
 		var canceled atomic.Bool
-		cursor := NewSequence(published)
+		claimed := NewSequence(published)
 
-		got, err := strategy.WaitFor(target, cursor, []*Sequence{cursor}, &canceled)
+		got, err := strategy.WaitFor(target, claimed, []*Sequence{claimed}, &canceled)
 
 		expectAvailable(t, published, got, err)
 	})
@@ -61,10 +61,10 @@ func TestWaitForFollowsSlowestDependency(t *testing.T) {
 	forEachWaitStrategy(t, func(t *testing.T, strategy WaitStrategy) {
 		const target, slowest = 1, 2
 		var canceled atomic.Bool
-		cursor := NewSequence(4)
+		claimed := NewSequence(4)
 		dependency := NewSequence(slowest)
 
-		got, err := strategy.WaitFor(target, cursor, []*Sequence{dependency}, &canceled)
+		got, err := strategy.WaitFor(target, claimed, []*Sequence{dependency}, &canceled)
 
 		expectAvailable(t, slowest, got, err)
 	})
@@ -74,13 +74,13 @@ func TestWaitForBlocksUntilPublished(t *testing.T) {
 	forEachWaitStrategy(t, func(t *testing.T, strategy WaitStrategy) {
 		const target = 3
 		var canceled atomic.Bool
-		cursor := NewSequence(InitialSequence)
+		claimed := NewSequence(InitialSequence)
 		afterDelay(func() {
-			cursor.Store(target)
+			claimed.Store(target)
 			strategy.WakeWaiters()
 		})
 
-		got, err := strategy.WaitFor(target, cursor, []*Sequence{cursor}, &canceled)
+		got, err := strategy.WaitFor(target, claimed, []*Sequence{claimed}, &canceled)
 
 		expectAvailable(t, target, got, err)
 	})
@@ -90,13 +90,13 @@ func TestWaitForReturnsErrCanceledWhenCanceled(t *testing.T) {
 	forEachWaitStrategy(t, func(t *testing.T, strategy WaitStrategy) {
 		const target = 3
 		var canceled atomic.Bool
-		cursor := NewSequence(InitialSequence)
+		claimed := NewSequence(InitialSequence)
 		afterDelay(func() {
 			canceled.Store(true)
 			strategy.WakeWaiters()
 		})
 
-		_, err := strategy.WaitFor(target, cursor, []*Sequence{cursor}, &canceled)
+		_, err := strategy.WaitFor(target, claimed, []*Sequence{claimed}, &canceled)
 
 		if !errors.Is(err, ErrCanceled) {
 			t.Fatalf("WaitFor() error = %v, expected ErrCanceled", err)
