@@ -13,7 +13,9 @@ func NewRingBuffer[E any](sequencer *Sequencer) *RingBuffer[E] {
 }
 
 func (r *RingBuffer[E]) Get(sequence int64) *E {
-	return &r.entries[sequence%int64(len(r.entries))]
+	slot := sequence % int64(len(r.entries))
+
+	return &r.entries[slot]
 }
 
 func (r *RingBuffer[E]) Next() int64 {
@@ -22,4 +24,11 @@ func (r *RingBuffer[E]) Next() int64 {
 
 func (r *RingBuffer[E]) Publish(sequence int64) {
 	r.sequencer.Publish(sequence)
+}
+
+func (r *RingBuffer[E]) PublishEvent(write func(event *E)) {
+	sequence := r.Next()
+	defer r.Publish(sequence)
+
+	write(r.Get(sequence))
 }
