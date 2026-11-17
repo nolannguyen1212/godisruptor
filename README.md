@@ -1,12 +1,58 @@
 # godisruptor
 
-A Go implementation of the [LMAX Disruptor](https://lmax-exchange.github.io/disruptor/), a way to hand events from one goroutine to another through a preallocated ring buffer. This version is single producer, single consumer (SPSC).
+A Go implementation of the [LMAX Disruptor](https://lmax-exchange.github.io/disruptor/). A producer hands events to a consumer through a preallocated ring buffer. This version is single producer, single consumer (SPSC).
 
 <p align="center"><img src="assets/architecture.svg" width="600" alt="Architecture"></p>
 
-The ring buffer is allocated once and reused. The producer and the consumer never call each other. They coordinate through two counters, each written by exactly one side: the cursor, which is the last sequence the producer has published, and the consumer sequence, which is the last sequence the consumer has read. A sequence only grows, and it maps to a slot of the ring with `sequence % size`, which is what makes the ring circular.
+## How it works
 
-To send an event, the producer writes it into the next slot and publishes it, which moves the cursor. The consumer waits until the cursor reaches the sequence it wants, reads the event from the ring, and then stores its own sequence. Before the producer reuses a slot it checks the consumer sequence, so it never overwrites an event that has not been read.
+The producer writes each event into the next slot of the ring and publishes it, which moves the cursor. The consumer waits until the cursor reaches the sequence it wants, reads the event, and records how far it has read in its own sequence. Before the producer reuses a slot it checks that sequence, so it never overwrites an event that has not been read.
+
+The two sides never call each other. They only read two counters, and each counter is written by one side alone. A sequence only grows, and `sequence % size` gives its slot, which is what makes the ring circular.
+
+## Usage
+
+```bash
+go get github.com/nolannguyen1212/godisruptor
+```
+
+Create a sequencer, a ring buffer for your event type, and a sequence for the consumer. The wait strategy decides how the consumer waits, from `NewBusySpinWaitStrategy`, which keeps a core busy for the lowest latency, to `NewBlockingWaitStrategy`, which parks the goroutine.
+
+```go
+sequencer := godisruptor.NewSequencer(1024, godisruptor.NewYieldingWaitStrategy())
+ring := godisruptor.NewRingBuffer[Order](sequencer)
+consumer := godisruptor.NewSequence(godisruptor.InitialSequence)
+sequencer.AddConsumerSequences(consumer)
+barrier := sequencer.NewBarrier()
+```
+
+The producer fills a slot and publishes it in one call.
+
+```go
+ring.PublishEvent(func(order *Order) {
+	order.Price = 101
+})
+```
+
+The consumer asks the barrier for the next sequence, reads every event up to it, and then stores how far it has read.
+
+```go
+for next := int64(0); ; {
+	available, err := barrier.WaitFor(next)
+	if err != nil {
+		return
+	}
+
+	for sequence := next; sequence <= available; sequence++ {
+		fmt.Println(ring.Get(sequence).Price)
+	}
+
+	consumer.Store(available)
+	next = available + 1
+}
+```
+
+`barrier.Alert()` stops a consumer that is waiting, and `WaitFor` then returns an error. A sequencer must be used by one producer goroutine only.
 
 ## Build
 
