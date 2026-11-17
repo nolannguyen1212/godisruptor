@@ -2,32 +2,32 @@ package godisruptor
 
 import "testing"
 
-func TestSequenceStartsAtMinusOne(t *testing.T) {
-	s := NewSequence(InitialSequence)
-	if got := s.Load(); got != -1 {
-		t.Fatalf("Load() = %d, expected -1", got)
+func TestNewSequence(t *testing.T) {
+	sequence := NewSequence(InitialSequence)
+
+	if got := sequence.Load(); got != -1 {
+		t.Errorf("Load() = %d, want -1", got)
 	}
 }
 
 func TestSlowestOf(t *testing.T) {
 	tests := []struct {
-		name     string
-		values   []int64
-		ceiling  int64
-		expected int64
+		name    string
+		values  []int64
+		ceiling int64
+		want    int64
 	}{
-		{"empty slice returns ceiling", nil, 5, 5},
-		{"returns the minimum value", []int64{7, 3, 9}, 100, 3},
-		{"ceiling lower than all values", []int64{7, 3, 9}, 2, 2},
+		{"no sequences returns the ceiling", nil, 5, 5},
+		{"returns the lowest sequence", []int64{7, 3, 9}, 100, 3},
+		{"never returns more than the ceiling", []int64{7, 3, 9}, 2, 2},
 	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			sequences := make([]*Sequence, len(test.values))
-			for i, value := range test.values {
-				sequences[i] = NewSequence(value)
-			}
-			if got := slowestOf(sequences, test.ceiling); got != test.expected {
-				t.Errorf("slowestOf() = %d, expected %d", got, test.expected)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := slowestOf(sequencesOf(tt.values...), tt.ceiling)
+
+			if got != tt.want {
+				t.Errorf("slowestOf(%v, %d) = %d, want %d", tt.values, tt.ceiling, got, tt.want)
 			}
 		})
 	}
